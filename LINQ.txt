@@ -1,0 +1,123 @@
+(From r In dtData.AsEnumerable
+let ra = r.ItemArray.Select(Function (x) x.ToString.Trim.Replace(" ",“NA”)).toArray()
+Select dtCorrected.Rows.Add(ra)).CopyToDataTable()
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Windows.Forms;
+using System.Activities;
+
+namespace WebHelpers.InputHelpers
+{
+    public sealed class MultiDialogActivity : CodeActivity
+    {
+        [RequiredArgument]
+        public InArgument<Dictionary<string, string[]>> Controls { get; set; }
+
+        [RequiredArgument]
+        public InArgument<string> Title { get; set; }
+
+        public OutArgument<Dictionary<string, string>> InputResults { get; set; }
+
+        private Dictionary<string, string> results;
+        private List<Control> formControls;
+        private Form form;
+
+        protected override void Execute(CodeActivityContext context)
+        {
+            var controls = Controls.Get(context);
+            form = new Form();
+            form.Text = Title.Get(context);
+            form.ControlBox = false;
+            var tlp = new TableLayoutPanel();
+            form.Controls.Add(tlp);
+
+            tlp.AutoSize = true;
+            tlp.ColumnCount = 2;
+            tlp.RowCount = controls.Count;
+            tlp.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            tlp.GrowStyle = TableLayoutPanelGrowStyle.AddRows;
+
+            formControls = new List<Control>(controls.Count);
+
+            for (int i = 0; i < controls.Count; i++)
+            {
+                var kvp = controls.ElementAt(i);
+                tlp.Controls.Add(new Label() { Text = kvp.Key, TextAlign = System.Drawing.ContentAlignment.MiddleCenter }, 0, i);
+                var ctrl = CreateControl(kvp.Value);
+                ctrl.Name = kvp.Key;
+                tlp.Controls.Add(ctrl, 1, i);
+                formControls.Add(ctrl);
+            }
+            var btn = new Button();
+            btn.Text = "Submit";
+            btn.Click += Btn_Click;
+            tlp.Controls.Add(btn, 1, tlp.RowCount);
+            form.AcceptButton = btn;
+            form.ShowDialog();
+
+            InputResults.Set(context, results);
+        }
+
+        private void Btn_Click(object sender, EventArgs e)
+        {
+            results = new Dictionary<string, string>(formControls.Count);
+            foreach (var cntrl in formControls)
+            {
+                results.Add(cntrl.Name, cntrl.Text);
+            }
+            form.Close();
+        }
+
+        private Control CreateControl(string[] options)
+        {
+            switch (options.Length)
+            {
+                case 0:
+                    return new TextBox();
+                case 1:
+                    return new TextBox() { Text = options[0] };
+                default:
+                    var cmb = new ComboBox();
+                    foreach (var option in options)
+                    {
+                        cmb.Items.Add(option);
+                    }
+                    return cmb;
+            }
+        }
+    }
+
+Excel last row (Invoke Code)
+Dim xlApp As Microsoft.Office.Interop.Excel.Application
+Dim xlWorkbook As Microsoft.Office.Interop.Excel.Workbook
+Dim xlWorksheet As Microsoft.Office.Interop.Excel.Worksheet
+Dim xlRange As Microsoft. Office.Interop.Excel.Range
+xlApp = New Microsoft.Office.Interop.Excel.ApplicationClass
+Try
+   xlWorkbook = xlApp.Workbooks.Open(in_FilePath)
+   xlWorksheet = CType(xlWorkbook.Worksheets("Sheet1"),Microsoft.Office.Interop.Excel.Worksheet)
+   xlRange = xlWorksheet.Cells.SpecialCells(Microsoft.Office.Interop.Excel.XlCellType.xlCellTypeLastCell,Type.Missing)
+   out_LastRow = xlRange.Row
+   xlApp.Visible = False
+   xlWorkbook.Save
+   xlWorkbook.Close
+Catch ex As Exception
+   Throw ex
+
+Finally
+    xlApp.Quit
+End Try
+
+VBA Code
+Sub sblastRowOfASheet()
+'Update 20140603
+Dim xLastRow As Long
+xLastRow = Application.ActiveSheet.Cells.SpecialCells(xlLastCell).Row
+MsgBox "Last Used Row: " & xLastRow
+Do While Application.CountA(ActiveSheet.Rows(xLastRow)) = 0 And xLastRow <> 1
+    xLastRow = xLastRow - 1
+Loop
+MsgBox "Last Row with Data: " & xLastRow
+End Sub
